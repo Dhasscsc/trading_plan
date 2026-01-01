@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="ta">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Analyzer - All-in-One Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Hind+Madurai:wght@400;700&display=swap');
+        body { font-family: 'Hind Madurai', sans-serif; background-color: #f1f5f9; }
+        .buy { color: #15803d; background-color: #dcfce7; padding: 4px 10px; border-radius: 20px; font-weight: bold; }
+        .sell { color: #b91c1c; background-color: #fee2e2; padding: 4px 10px; border-radius: 20px; font-weight: bold; }
+        .wait { color: #a16207; background-color: #fef9c3; padding: 4px 10px; border-radius: 20px; font-weight: bold; }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <div class="max-w-7xl mx-auto bg-white p-6 md:p-10 rounded-3xl shadow-2xl border border-gray-100">
+        <h1 class="text-3xl font-black text-center text-indigo-800 mb-2">🚀 ஆல்-இன்-ஒன் ஸ்டாக் அனலைசர்</h1>
+        <p class="text-center text-gray-500 mb-8 text-sm">EQ Series | TGT 5% | SL 2% | Advanced Filters</p>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <div class="p-4 border-2 border-dashed border-indigo-200 rounded-2xl bg-indigo-50/30 text-center">
+                <p class="font-bold text-indigo-700 mb-2">நேற்றைய CSV</p>
+                <input type="file" id="yestFile" accept=".csv" class="text-xs">
+            </div>
+            <div class="p-4 border-2 border-dashed border-indigo-200 rounded-2xl bg-indigo-50/30 text-center">
+                <p class="font-bold text-indigo-700 mb-2">இன்றைய CSV</p>
+                <input type="file" id="todayFile" accept=".csv" class="text-xs">
+            </div>
+        </div>
+
+        <button onclick="analyzeData()" class="w-full bg-indigo-600 text-white font-bold py-4 rounded-xl hover:bg-indigo-700 text-lg mb-8 shadow-lg transition-all">
+            தரவுகளை பகுப்பாய்வு செய் (Analyze)
+        </button>
+
+        <div id="filterControls" class="hidden bg-slate-100 p-6 rounded-2xl border border-slate-200 mb-8 shadow-inner">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="font-bold text-slate-700 uppercase text-xs tracking-widest">வடிகட்டுதல் (Filters)</h3>
+                <button onclick="resetFilters()" class="text-xs text-red-500 font-bold hover:underline">Reset All</button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div>
+                    <label class="text-[10px] font-bold text-gray-500 uppercase">பங்கு பெயர் / WhatsApp</label>
+                    <div class="flex flex-col gap-2">
+                        <input type="text" id="searchSymbol" oninput="applyFilters()" placeholder="SBI, REL..." class="p-2 border rounded-lg text-sm">
+                        <input type="text" id="waNumber" placeholder="WhatsApp No" class="p-2 border rounded-lg text-sm bg-green-50" value="91">
+                    </div>
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-gray-500 uppercase">விலை (Min - Max ₹)</label>
+                    <div class="flex gap-2">
+                        <input type="number" id="minPrice" oninput="applyFilters()" placeholder="Min" class="w-1/2 p-2 border rounded-lg text-sm">
+                        <input type="number" id="maxPrice" oninput="applyFilters()" placeholder="Max" class="w-1/2 p-2 border rounded-lg text-sm">
+                    </div>
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-gray-500 uppercase">மாற்றம் % (குறைந்தபட்சம்)</label>
+                    <input type="number" id="minPct" oninput="applyFilters()" placeholder="உதாரணம்: 2" class="w-full p-2 border rounded-lg text-sm">
+                </div>
+                <div class="flex flex-col justify-end">
+                    <label class="text-[10px] font-bold text-gray-500 uppercase mb-1">சிக்னல்</label>
+                    <select id="signalSelect" onchange="setSignalFilter(this.value)" class="p-2 border rounded-lg text-sm">
+                        <option value="All">அனைத்தும்</option>
+                        <option value="வாங்க">வாங்க (Buy)</option>
+                        <option value="விற்க">விற்க (Sell)</option>
+                        <option value="காத்திரு">காத்திரு (Wait)</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div id="summary" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 hidden text-white font-bold">
+            <div class="bg-indigo-800 p-4 rounded-xl text-center shadow">
+                <p class="text-[10px] opacity-70">மொத்தம் (EQ)</p>
+                <p id="countTotal" class="text-2xl">0</p>
+            </div>
+            <div class="bg-green-600 p-4 rounded-xl text-center shadow">
+                <p class="text-[10px] opacity-70">வாங்க</p>
+                <p id="countBuy" class="text-2xl">0</p>
+            </div>
+            <div class="bg-red-600 p-4 rounded-xl text-center shadow">
+                <p class="text-[10px] opacity-70">விற்க</p>
+                <p id="countSell" class="text-2xl">0</p>
+            </div>
+            <div class="bg-yellow-500 p-4 rounded-xl text-center shadow">
+                <p class="text-[10px] opacity-70">காத்திரு</p>
+                <p id="countWait" class="text-2xl">0</p>
+            </div>
+        </div>
+
+        <div id="resultArea" class="hidden">
+            <div class="overflow-x-auto rounded-xl border border-gray-200">
+                <table class="w-full text-left bg-white">
+                    <thead class="bg-slate-800 text-white text-[10px] uppercase">
+                        <tr>
+                            <th class="p-4">பங்கு</th>
+                            <th class="p-4 text-right">விலை</th>
+                            <th class="p-4 text-right">மாற்றம் ₹</th>
+                            <th class="p-4 text-right">மாற்றம் %</th>
+                            <th class="p-4 text-center">சிக்னல்</th>
+                            <th class="p-4 text-right">Target (5%)</th>
+                            <th class="p-4 text-right">Stop Loss (2%)</th>
+                            <th class="p-4 text-center">பகிர்</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dataTable" class="divide-y text-xs"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let fullData = [];
+        let signalFilter = 'All';
+
+        function cleanNum(val) {
+            if (!val) return 0;
+            let n = parseFloat(val.toString().replace(/,/g, "").trim());
+            return isNaN(n) ? 0 : n;
+        }
+
+        async function parseCSV(file) {
+            return new Promise((resolve, reject) => {
+                Papa.parse(file, {
+                    header: true, skipEmptyLines: true,
+                    complete: (r) => {
+                        const d = r.data.map(row => {
+                            let obj = {};
+                            for (let k in row) obj[k.trim().toUpperCase()] = row[k];
+                            return obj;
+                        });
+                        resolve(d);
+                    },
+                    error: (e) => reject(e)
+                });
+            });
+        }
+
+        async function analyzeData() {
+            const yF = document.getElementById('yestFile').files[0];
+            const tF = document.getElementById('todayFile').files[0];
+            if (!yF || !tF) { alert("இரண்டு கோப்புகளையும் பதிவேற்றவும்!"); return; }
+
+            try {
+                const yD = await parseCSV(yF);
+                const tD = await parseCSV(tF);
+
+                fullData = tD.map(t => {
+                    const sym = t['SYMBOL'];
+                    const series = t['SERIES'] ? t['SERIES'].trim().toUpperCase() : '';
+                    if(!sym || series !== 'EQ') return null;
+
+                    const y = yD.find(item => item['SYMBOL'] === sym);
+                    const pT = cleanNum(t['IEP'] || t['LTP'] || t['CLOSE_PRICE'] || t['CLOSE']);
+                    const pY = y ? cleanNum(y['IEP'] || y['LTP'] || y['CLOSE_PRICE'] || y['CLOSE']) : 0;
+                    
+                    const diff = pY > 0 ? (pT - pY) : 0;
+                    const pct = pY > 0 ? (diff / pY) * 100 : 0;
+                    const target = pT * 1.05;
+                    const stoploss = pT * 0.98;
+
+                    let s = "காத்திரு";
+                    if(pct >= 1) s = "வாங்க"; else if(pct <= -1) s = "விற்க";
+
+                    return { sym, pT, diff, pct, s, target, stoploss };
+                }).filter(x => x !== null);
+
+                fullData.sort((a,b) => b.pct - a.pct);
+                
+                document.getElementById('filterControls').classList.remove('hidden');
+                document.getElementById('summary').classList.remove('hidden');
+                document.getElementById('resultArea').classList.remove('hidden');
+                
+                applyFilters();
+            } catch(err) { alert("பிழை ஏற்பட்டது!"); }
+        }
+
+        function setSignalFilter(val) {
+            signalFilter = val;
+            applyFilters();
+        }
+
+        function resetFilters() {
+            document.getElementById('searchSymbol').value = "";
+            document.getElementById('minPrice').value = "";
+            document.getElementById('maxPrice').value = "";
+            document.getElementById('minPct').value = "";
+            document.getElementById('signalSelect').value = "All";
+            signalFilter = 'All';
+            applyFilters();
+        }
+
+        function applyFilters() {
+            const search = document.getElementById('searchSymbol').value.toUpperCase();
+            const minP = parseFloat(document.getElementById('minPrice').value) || 0;
+            const maxP = parseFloat(document.getElementById('maxPrice').value) || 9999999;
+            const minPctVal = parseFloat(document.getElementById('minPct').value) || 0;
+
+            const filtered = fullData.filter(i => {
+                const matchName = i.sym.includes(search);
+                const matchPrice = i.pT >= minP && i.pT <= maxP;
+                const matchPct = Math.abs(i.pct) >= minPctVal;
+                const matchSig = (signalFilter === 'All' || i.s === signalFilter);
+                return matchName && matchPrice && matchPct && matchSig;
+            });
+
+            document.getElementById('countTotal').innerText = fullData.length;
+            document.getElementById('countBuy').innerText = fullData.filter(x => x.s === 'வாங்க').length;
+            document.getElementById('countSell').innerText = fullData.filter(x => x.s === 'விற்க').length;
+            document.getElementById('countWait').innerText = fullData.filter(x => x.s === 'காத்திரு').length;
+
+            renderTable(filtered);
+        }
+
+        function renderTable(data) {
+            const tbody = document.getElementById('dataTable');
+            tbody.innerHTML = '';
+            data.forEach(i => {
+                const cls = i.s === 'வாங்க' ? 'buy' : (i.s === 'விற்க' ? 'sell' : 'wait');
+                const pColor = i.pct >= 0 ? 'text-green-600' : 'text-red-600';
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50 border-b";
+                tr.innerHTML = `
+                    <td class="p-4 font-bold text-slate-800">${i.sym}</td>
+                    <td class="p-4 text-right font-black">₹${i.pT.toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
+                    <td class="p-4 text-right font-bold ${pColor}">${i.diff.toFixed(2)}</td>
+                    <td class="p-4 text-right font-bold ${pColor}">${i.pct.toFixed(2)}%</td>
+                    <td class="p-4 text-center"><span class="${cls} text-[10px]">${i.s}</span></td>
+                    <td class="p-4 text-right font-bold text-green-600">₹${i.target.toFixed(2)}</td>
+                    <td class="p-4 text-right font-bold text-red-600">₹${i.stoploss.toFixed(2)}</td>
+                    <td class="p-4 text-center">
+                        <button onclick="shareWA('${i.sym}','${i.pT.toFixed(2)}','${i.diff.toFixed(2)}','${i.pct.toFixed(2)}','${i.s}','${i.target.toFixed(2)}','${i.stoploss.toFixed(2)}')" class="text-green-500 hover:scale-125 transition-transform">
+                            <svg class="w-5 h-5 mx-auto" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function shareWA(n, p, d, c, s, t, sl) {
+            let wa = document.getElementById('waNumber').value.trim();
+            let msg = `📊 *Stock Analysis (Professional)*\n\nStock: *${n}*\nPrice: ₹${p}\nChange: ₹${d} (${c}%)\nSignal: *${s}*\n\n🎯 Target: ₹${t}\n🛑 Stop Loss: ₹${sl}`;
+            window.open(`https://wa.me/${wa}?text=${encodeURIComponent(msg)}`, '_blank');
+        }
+    </script>
+</body>
+</html>
